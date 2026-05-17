@@ -56,7 +56,7 @@ class HavanoInvoicesController(HavanoApiControllerMixin, http.Controller):
             "discount": line.discount,
         } for line in invoice.invoice_line_ids]
 
-    @http.route("/api/v1/invoices", auth="public", methods=["GET"], type="http", csrf=False)
+    @http.route("/api/v1/invoices", auth="public", methods=["GET"], type="json", csrf=False)
     def list_invoices(self, limit=100, offset=0, state=None, **kwargs):
         """GET /api/v1/invoices - List invoices."""
         return self._handle_route(lambda env: self._list_invoices(env, limit, offset, state))
@@ -90,7 +90,7 @@ class HavanoInvoicesController(HavanoApiControllerMixin, http.Controller):
             "offset": offset,
         })
 
-    @http.route("/api/v1/invoices/<int:invoice_id>", auth="public", methods=["GET"], type="http", csrf=False)
+    @http.route("/api/v1/invoices/<int:invoice_id>", auth="public", methods=["GET"], type="json", csrf=False)
     def get_invoice(self, invoice_id, **kwargs):
         """GET /api/v1/invoices/:id - Get single invoice details for POS display."""
         return self._handle_route(lambda env: self._get_invoice(env, invoice_id))
@@ -105,7 +105,7 @@ class HavanoInvoicesController(HavanoApiControllerMixin, http.Controller):
 
         return self._success(data)
 
-    @http.route("/api/v1/invoices/<int:invoice_id>/lines", auth="public", methods=["GET"], type="http", csrf=False)
+    @http.route("/api/v1/invoices/<int:invoice_id>/lines", auth="public", methods=["GET"], type="json", csrf=False)
     def get_invoice_lines(self, invoice_id, **kwargs):
         """GET /api/v1/invoices/:id/lines - Get invoice lines only."""
         return self._handle_route(lambda env: self._get_invoice_lines(env, invoice_id))
@@ -122,7 +122,7 @@ class HavanoInvoicesController(HavanoApiControllerMixin, http.Controller):
             "total_lines": len(invoice.invoice_line_ids),
         })
 
-    @http.route("/api/v1/invoices", auth="public", methods=["POST"], type="http", csrf=False)
+    @http.route("/api/v1/invoices", auth="public", methods=["POST"], type="json", csrf=False)
     def create_invoice(self, **kwargs):
         """POST /api/v1/invoices - Create invoice."""
         return self._handle_route(lambda env: self._create_invoice(env))
@@ -215,7 +215,7 @@ class HavanoInvoicesController(HavanoApiControllerMixin, http.Controller):
 
         return self._success(self._serialize_invoice(move), message=_("Invoice created."), status=201)
 
-    @http.route("/api/v1/invoices/<int:invoice_id>/post", auth="public", methods=["POST"], type="http", csrf=False)
+    @http.route("/api/v1/invoices/<int:invoice_id>/post", auth="public", methods=["POST"], type="json", csrf=False)
     def post_invoice(self, invoice_id, **kwargs):
         """POST /api/v1/invoices/:id/post - Post invoice."""
         return self._handle_route(lambda env: self._post_invoice(env, invoice_id))
