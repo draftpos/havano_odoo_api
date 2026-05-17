@@ -13,17 +13,18 @@ Native Odoo session-based REST API for seamless POS synchronization.
 - Simple username/password authentication (no token management)
 - Products CRUD with intelligent SKU matching
 - Customer management with email/phone deduplication
-- Sales orders with automatic tax resolution
-- Invoice creation and posting
-- Credit notes with reversal support
-- Payment tracking and overdue management
+- Idempotent sales processing (no duplicates)
+- Invoice creation and retrieval for POS display
+- Payment registration and reconciliation
 - Real-time stock queries
-- Dashboard analytics endpoints
-- Comprehensive error handling
-- Detailed logging for debugging
+- Comprehensive error logging
+- Graceful handling of missing optional modules
 
-**Authentication:**
-Just use normal Odoo credentials - session is maintained automatically!
+**Workflow:**
+1. POS sends sale -> Odoo creates order, invoice, delivery
+2. POS gets invoice details to show customer
+3. Customer pays -> POS sends payment with invoice reference
+4. Odoo registers and reconciles payment
     """,
     "author": "Havano",
     "website": "https://www.havano.com",

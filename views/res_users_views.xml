@@ -8,75 +8,13 @@
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
                 <page string="POS Workflow" name="pos_workflow">
-                    <group string="Automatic POS Workflow Settings" name="pos_workflow_settings">
-                        <field name="pos_enable_auto_workflow" class="oe_inline"/>
-                        <label for="pos_enable_auto_workflow" string="Enable Automatic POS Workflow"/>
-                        
-                        <group name="pos_auto_settings" 
-                               attrs="{'invisible': [('pos_enable_auto_workflow', '=', False)]}">
-                            <separator string="Auto-complete Options"/>
-                            
-                            <field name="pos_auto_confirm_sale"/>
-                            <label for="pos_auto_confirm_sale" string="Auto Confirm Sales Orders"/>
-                            <div class="text-muted">
-                                When enabled, quotations will be automatically confirmed as sales orders.
-                            </div>
-                            
-                            <field name="pos_auto_create_invoice"/>
-                            <label for="pos_auto_create_invoice" string="Auto Create Invoice"/>
-                            <div class="text-muted">
-                                When enabled, invoices will be automatically created from confirmed sales orders.
-                            </div>
-                            
-                            <field name="pos_auto_post_invoice" 
-                                   attrs="{'invisible': [('pos_auto_create_invoice', '=', False)]}"/>
-                            <label for="pos_auto_post_invoice" string="Auto Post Invoice"/>
-                            <div class="text-muted">
-                                When enabled, invoices will be automatically posted (made final).
-                            </div>
-                            
-                            <field name="pos_auto_validate_delivery"/>
-                            <label for="pos_auto_validate_delivery" string="Auto Validate Delivery"/>
-                            <div class="text-muted">
-                                When enabled, delivery orders will be automatically validated.
-                            </div>
-                            
-                            <field name="pos_auto_register_payment"/>
-                            <label for="pos_auto_register_payment" string="Auto Register Payment"/>
-                            <div class="text-muted">
-                                When enabled, payments will be automatically registered and reconciled.
-                            </div>
-                        </group>
-                    </group>
-                    
-                    <group string="Workflow Preview" name="workflow_preview">
-                        <div class="alert alert-info" role="alert" 
-                             attrs="{'invisible': [('pos_enable_auto_workflow', '=', False)]}">
-                            <strong>📋 Current Workflow Configuration:</strong>
-                            <ul>
-                                <li t-if="pos_auto_confirm_sale">✅ <strong>Sales Order:</strong> Will be auto-confirmed</li>
-                                <li t-else="pos_enable_auto_workflow and not pos_auto_confirm_sale">⚠️ <strong>Sales Order:</strong> Will remain as Quotation (needs manual confirmation)</li>
-                                
-                                <li t-if="pos_auto_create_invoice">✅ <strong>Invoice:</strong> Will be auto-created</li>
-                                <li t-else="pos_enable_auto_workflow and not pos_auto_create_invoice">⚠️ <strong>Invoice:</strong> Will not be auto-created</li>
-                                
-                                <li t-if="pos_auto_post_invoice">✅ <strong>Invoice Posting:</strong> Will be auto-posted</li>
-                                <li t-elif="pos_auto_create_invoice and not pos_auto_post_invoice">⚠️ <strong>Invoice Posting:</strong> Will be created but not posted</li>
-                                
-                                <li t-if="pos_auto_validate_delivery">✅ <strong>Delivery:</strong> Will be auto-validated</li>
-                                <li t-else="pos_enable_auto_workflow and not pos_auto_validate_delivery">⚠️ <strong>Delivery:</strong> Will be created but not validated</li>
-                                
-                                <li t-if="pos_auto_register_payment">✅ <strong>Payment:</strong> Will be auto-registered and reconciled</li>
-                                <li t-else="pos_enable_auto_workflow and not pos_auto_register_payment">⚠️ <strong>Payment:</strong> Will not be auto-registered</li>
-                            </ul>
-                        </div>
-                        <div class="alert alert-secondary" role="alert" 
-                             attrs="{'invisible': [('pos_enable_auto_workflow', '=', True)]}">
-                            ⚠️ <strong>Automatic Workflow is Disabled</strong><br/>
-                            When disabled, POS sales will only create draft quotations. No automatic confirmation, invoicing, delivery, or payment processing will occur.
-                            <br/><br/>
-                            Enable "Automatic POS Workflow" above to configure auto-completion options.
-                        </div>
+                    <group string="Automatic POS Workflow Settings">
+                        <field name="pos_enable_auto_workflow"/>
+                        <field name="pos_auto_confirm_sale"/>
+                        <field name="pos_auto_create_invoice"/>
+                        <field name="pos_auto_post_invoice"/>
+                        <field name="pos_auto_validate_delivery"/>
+                        <field name="pos_auto_register_payment"/>
                     </group>
                 </page>
             </xpath>
