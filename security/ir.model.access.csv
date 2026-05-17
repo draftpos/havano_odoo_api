@@ -1,2 +1,15 @@
 id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_havano_api_documentation_system,havano.api.documentation.system,model_havano_api_documentation,base.group_system,1,1,1,1
+access_havano_api_documentation_user,havano.api.documentation.user,model_havano_api_documentation,base.group_user,1,0,0,0
+
+# Give internal users full access to API-related models
+access_havano_api_full_access,havano.api.full.access,model_product_template,base.group_user,1,1,1,1
+access_havano_api_full_access_partner,havano.api.full.access.partner,model_res_partner,base.group_user,1,1,1,1
+access_havano_api_full_access_sale,havano.api.full.access.sale,model_sale_order,base.group_user,1,1,1,1
+access_havano_api_full_access_account,havano.api.full.access.account,model_account_move,base.group_user,1,1,1,1
+access_havano_api_full_access_payment,havano.api.full.access.payment,model_account_payment,base.group_user,1,1,1,1
+access_havano_api_full_access_stock,havano.api.full.access.stock,model_stock_warehouse,base.group_user,1,1,1,1
+access_havano_api_full_access_stock_picking,havano.api.full.access.stock.picking,model_stock_picking,base.group_user,1,1,1,1
+
+# User workflow preferences
+access_res_users_workflow,res.users.workflow,model_res_users,base.group_user,1,1,0,0

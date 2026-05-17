@@ -38,6 +38,7 @@ Just use normal Odoo credentials - session is maintained automatically!
     "data": [
         "security/ir.model.access.csv",
         "views/api_docs_views.xml",
+        "views/res_users_views.xml",
     ],
     "installable": True,
     "application": False,

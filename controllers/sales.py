@@ -1,3 +1,4 @@
+# controllers/sales.py
 from odoo import http, fields, _
 from odoo.http import request
 from odoo.exceptions import ValidationError
@@ -12,7 +13,7 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
     POS Sales Controller
     
     Receives finalized POS transactions and records them in Odoo.
-    Creates both Sales Orders and Invoices for full integration.
+    Creates Sales Orders, Invoices, Deliveries, and Payments based on user workflow preferences.
     """
     
     @http.route("/api/v1/sales", auth="public", methods=["POST"], type="http", csrf=False)
@@ -20,7 +21,7 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
         return self._handle_route(lambda env: self._process_sale(env))
     
     def _process_sale(self, env):
-        """Main processing logic"""
+        """Main processing logic - respects user workflow preferences"""
         data = self._parse_json_data()
         
         # ================================================================
@@ -36,7 +37,7 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
         if not lines:
             raise ValidationError(_("At least one sale line is required."))
         
-        _logger.info("Processing POS sale: %s with %s lines and %s payments",
+        _logger.info("Processing POS sale: %s with %s lines and %s payments", 
                     pos_reference, len(lines), len(payments))
         
         # ================================================================
@@ -52,6 +53,7 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
             return self._success({
                 "sale_order_id": existing_sale_order.id,
                 "sale_order_name": existing_sale_order.name,
+                "sale_order_state": existing_sale_order.state,
                 "invoice_id": existing_sale_order.invoice_ids.ids[0] if existing_sale_order.invoice_ids else None,
                 "amount_total": existing_sale_order.amount_total,
                 "state": existing_sale_order.state,
@@ -59,63 +61,123 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
             }, message=_("Sale already processed."))
         
         # ================================================================
-        # 3. RESOLVE CUSTOMER
+        # 3. GET USER WORKFLOW CONFIGURATION
+        # ================================================================
+        user = env.user
+        workflow = user.get_pos_workflow_config()
+        _logger.info("User %s workflow config: %s", user.name, workflow)
+        
+        # ================================================================
+        # 4. RESOLVE CUSTOMER
         # ================================================================
         partner = self._resolve_partner(env, data)
         
         # ================================================================
-        # 4. CREATE SALES ORDER
+        # 5. CREATE SALES ORDER (always in draft)
         # ================================================================
         sale_order = self._create_sales_order(env, partner, pos_reference, lines, data)
+        sale_order_state = sale_order.state
+        sale_order_confirmed = False
         
         # ================================================================
-        # 5. CONFIRM SALES ORDER
+        # 6. CONDITIONALLY CONFIRM SALES ORDER
         # ================================================================
-        if sale_order.state == 'draft':
-            sale_order.action_confirm()
-            _logger.info("Sales order confirmed: %s", sale_order.name)
+        if workflow['auto_confirm_sale']:
+            if sale_order.state == 'draft':
+                sale_order.action_confirm()
+                sale_order_state = sale_order.state
+                sale_order_confirmed = True
+                _logger.info("Sales order auto-confirmed: %s (user: %s)", sale_order.name, user.name)
+        else:
+            _logger.info("Sales order left as quotation: %s (user: %s)", sale_order.name, user.name)
         
         # ================================================================
-        # 6. CREATE INVOICE FROM SALES ORDER
+        # 7. INITIALIZE VARIABLES FOR DOWNSTREAM PROCESSING
         # ================================================================
-        invoice = self._create_invoice_from_sale_order(env, sale_order, lines, data)
+        invoice = None
+        picking = None
+        invoice_created = False
+        invoice_posted = False
+        delivery_validated = False
+        payment_registered = False
+        
+        # The order object to use for invoice/delivery creation
+        order_for_downstream = sale_order if sale_order_confirmed else None
         
         # ================================================================
-        # 7. CREATE AND VALIDATE DELIVERY ORDER
+        # 8. CONDITIONALLY CREATE AND POST INVOICE
         # ================================================================
-        picking = self._create_and_validate_delivery_order(env, partner, invoice, lines, pos_reference)
+        if workflow['auto_create_invoice'] and order_for_downstream:
+            invoice = self._create_invoice_from_sale_order(env, order_for_downstream, lines, data)
+            invoice_created = True
+            
+            if invoice and workflow['auto_post_invoice']:
+                invoice.action_post()
+                invoice_posted = True
+                _logger.info("Invoice auto-posted: %s (user: %s)", invoice.name, user.name)
+            elif invoice:
+                _logger.info("Invoice created but not posted: %s (user: %s)", invoice.name, user.name)
+        elif workflow['auto_create_invoice'] and not order_for_downstream:
+            _logger.info("Invoice creation skipped - sales order not confirmed (user: %s)", user.name)
         
         # ================================================================
-        # 8. POST INVOICE
+        # 9. CONDITIONALLY CREATE AND VALIDATE DELIVERY ORDER
         # ================================================================
-        invoice.action_post()
-        _logger.info("Invoice posted: %s (id=%s)", invoice.name, invoice.id)
+        if workflow['auto_validate_delivery'] and order_for_downstream:
+            picking = self._create_and_validate_delivery_order(env, partner, invoice or order_for_downstream, lines, pos_reference)
+            delivery_validated = picking is not None
+            _logger.info("Delivery order validated: %s (user: %s)", picking.name if picking else 'None', user.name)
+        elif workflow['auto_create_invoice'] and order_for_downstream:
+            # Create delivery but don't validate
+            picking = self._create_delivery_order_only(env, partner, order_for_downstream, lines, pos_reference)
+            _logger.info("Delivery order created but not validated: %s (user: %s)", picking.name if picking else 'None', user.name)
         
         # ================================================================
-        # 9. REGISTER PAYMENTS & RECONCILE
+        # 10. CONDITIONALLY REGISTER PAYMENTS
         # ================================================================
-        for payment_data in payments:
-            self._register_and_reconcile_payment(env, invoice, payment_data, pos_reference)
-        
-        # Refresh invoice state after payments
-        invoice.invalidate_recordset()
+        if workflow['auto_register_payment'] and invoice and invoice.state == 'posted':
+            for payment_data in payments:
+                self._register_and_reconcile_payment(env, invoice, payment_data, pos_reference)
+            payment_registered = True
+            _logger.info("Payments auto-registered for invoice: %s (user: %s)", invoice.name, user.name)
+        elif payments and invoice:
+            _logger.info("Payments received but not auto-registered (user: %s)", user.name)
+        elif payments and not invoice:
+            _logger.info("Payments received but no invoice created (user: %s)", user.name)
         
         # ================================================================
-        # 10. RETURN SUCCESS
+        # 11. REFRESH RECORD STATES
+        # ================================================================
+        if invoice:
+            invoice.invalidate_recordset()
+        if sale_order:
+            sale_order.invalidate_recordset()
+        if picking:
+            picking.invalidate_recordset()
+        
+        # ================================================================
+        # 12. RETURN SUCCESS WITH WORKFLOW INFO
         # ================================================================
         return self._success({
             "sale_order_id": sale_order.id,
             "sale_order_name": sale_order.name,
-            "invoice_id": invoice.id,
-            "invoice_name": invoice.name,
-            "amount_total": invoice.amount_total,
-            "amount_residual": invoice.amount_residual,
-            "payment_state": invoice.payment_state,
-            "state": invoice.state,
-            "partner_id": partner.id,
-            "partner_name": partner.name,
+            "sale_order_state": sale_order_state,
+            "invoice_id": invoice.id if invoice else None,
+            "invoice_name": invoice.name if invoice else None,
+            "invoice_state": invoice.state if invoice else None,
             "delivery_order_id": picking.id if picking else None,
             "delivery_order_name": picking.name if picking else None,
+            "delivery_order_state": picking.state if picking else None,
+            "amount_total": invoice.amount_total if invoice else sale_order.amount_total,
+            "partner_id": partner.id,
+            "partner_name": partner.name,
+            "workflow_applied": {
+                "order_confirmed": sale_order_confirmed,
+                "invoice_created": invoice_created,
+                "invoice_posted": invoice_posted,
+                "delivery_validated": delivery_validated,
+                "payment_registered": payment_registered,
+            }
         }, message=_("Sale processed successfully."), status=201)
     
     # ================================================================
@@ -234,10 +296,9 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
             raise ValidationError(_("Failed to create invoice from sales order."))
         
         _logger.info("Invoice created from sales order: %s (id=%s)", invoice.name, invoice.id)
-        
         return invoice
     
-    def _create_and_validate_delivery_order(self, env, partner, invoice, lines, pos_reference):
+    def _create_and_validate_delivery_order(self, env, partner, order, lines, pos_reference):
         """Create, confirm, assign, and validate a delivery order."""
         try:
             warehouse = env["stock.warehouse"].sudo().search([], limit=1)
@@ -306,7 +367,68 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
         except Exception as e:
             _logger.error("Failed to create/validate delivery order: %s", str(e))
             return None
-
+    
+    def _create_delivery_order_only(self, env, partner, order, lines, pos_reference):
+        """Create delivery order without validation."""
+        try:
+            warehouse = env["stock.warehouse"].sudo().search([], limit=1)
+            if not warehouse:
+                return None
+            
+            picking_type = warehouse.out_type_id
+            if not picking_type:
+                return None
+            
+            move_lines = []
+            for line_data in lines:
+                product_id = line_data.get("product_id")
+                quantity = float(line_data.get("quantity", 1))
+                
+                product = env["product.product"].sudo().browse(int(product_id))
+                if not product.exists():
+                    template = env["product.template"].sudo().browse(int(product_id))
+                    if template.exists() and template.product_variant_ids:
+                        product = template.product_variant_ids[0]
+                    else:
+                        continue
+                
+                if product.type != "consu":
+                    continue
+                
+                source_location = picking_type.default_location_src_id
+                dest_location = picking_type.default_location_dest_id or warehouse.lot_stock_id
+                
+                move_lines.append((0, 0, {
+                    "product_id": product.id,
+                    "product_uom_qty": quantity,
+                    "product_uom": product.uom_id.id,
+                    "location_id": source_location.id,
+                    "location_dest_id": dest_location.id,
+                }))
+            
+            if not move_lines:
+                return None
+            
+            picking = env["stock.picking"].sudo().create({
+                "partner_id": partner.id,
+                "picking_type_id": picking_type.id,
+                "location_id": picking_type.default_location_src_id.id,
+                "location_dest_id": picking_type.default_location_dest_id.id or warehouse.lot_stock_id.id,
+                "origin": pos_reference,
+                "move_ids": move_lines,
+            })
+            
+            picking.action_confirm()
+            picking.action_assign()
+            # NOT validating - leave for manual processing
+            
+            _logger.info("Delivery order created (not validated): %s", picking.name)
+            return picking
+            
+        except Exception as e:
+            _logger.error("Failed to create delivery order: %s", str(e))
+            return None
+    
     def _register_and_reconcile_payment(self, env, invoice, payment_data, pos_reference):
         """Create a payment, post it, and fully reconcile with the invoice."""
         Payment = env["account.payment"].sudo()
@@ -321,7 +443,6 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
         journal = self._get_payment_journal(env, method)
         payment_method_line = self._get_payment_method_line(env, journal, method)
         
-        # Create payment directly (not via wizard)
         payment = Payment.create({
             "payment_type": "inbound",
             "partner_type": "customer",
@@ -331,21 +452,18 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
             "payment_method_line_id": payment_method_line.id if payment_method_line else False,
             "date": fields.Date.today(),
             "memo": f"{pos_reference} - {method.title()} Payment",
-            "invoice_ids": [(6, 0, [invoice.id])],  # Link to invoice
+            "invoice_ids": [(6, 0, [invoice.id])],
         })
         
         payment.action_post()
         payment.invalidate_recordset()
-        _logger.info("Payment posted: id=%s, amount=%s, method=%s, move_id=%s", 
-                    payment.id, amount, method, payment.move_id.id if payment.move_id else None)
+        _logger.info("Payment posted: id=%s, amount=%s, method=%s", payment.id, amount, method)
         
-        # Reconcile payment with invoice
         if payment.move_id:
             self._reconcile_payment_with_invoice(env, invoice, payment)
         else:
-            _logger.warning("Payment has no move, attempting direct reconciliation")
             self._reconcile_payment_direct(env, invoice, payment)
-
+    
     def _reconcile_payment_with_invoice(self, env, invoice, payment):
         """Reconcile payment with invoice using move lines."""
         try:
@@ -362,9 +480,6 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
                 and not line.reconciled
             )
             
-            _logger.info("Reconciliation: payment_lines=%s, invoice_lines=%s",
-                        payment_lines.ids, invoice_lines.ids)
-            
             if payment_lines and invoice_lines:
                 (payment_lines + invoice_lines).reconcile()
                 invoice.invalidate_recordset(['payment_state', 'amount_residual'])
@@ -372,13 +487,12 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
                 
         except Exception as e:
             _logger.error("Reconciliation error: %s", str(e))
-
+    
     def _reconcile_payment_direct(self, env, invoice, payment):
         """Directly reconcile payment with invoice using account.move."""
         try:
             AccountMove = env["account.move"].sudo()
             
-            # Get receivable account
             receivable_account = invoice.partner_id.property_account_receivable_id
             if not receivable_account:
                 receivable_account = env['account.account'].search([
@@ -424,7 +538,7 @@ class HavanoSalesController(HavanoApiControllerMixin, http.Controller):
                 
         except Exception as e:
             _logger.error("Direct reconciliation failed: %s", str(e))
-
+    
     def _get_payment_journal(self, env, method):
         """Find appropriate journal for the payment method."""
         Journal = env["account.journal"].sudo()
