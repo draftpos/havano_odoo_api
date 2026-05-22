@@ -1,8 +1,8 @@
 {
     "name": "Havano Odoo API",
-    "version": "19.0.2.0.0",
+    "version": "19.0.2.0.3",
     "category": "Sales",
-    "summary": "Production-ready REST API for Havano POS with native Odoo authentication",
+    "summary": "REST API for Havano POS: products, pharmacy, doctors, sales, invoices",
     "description": """
 Havano POS Integration API - Production Ready
 =============================================
@@ -19,6 +19,12 @@ Native Odoo session-based REST API for seamless POS synchronization.
 - Real-time stock queries
 - Comprehensive error logging
 - Graceful handling of missing optional modules
+- Duplicate product name prevention
+- Auto-generated ITEM CODE (starts from 101)
+- Tax Inclusive by default for ZIMRA compliance
+- Pharmacy products with dosage (when activated)
+- Doctors CRUD for POS integration
+- Dosages master data API for POS
 
 **Workflow:**
 1. POS sends sale -> Odoo creates order, invoice, delivery
@@ -35,12 +41,17 @@ Native Odoo session-based REST API for seamless POS synchronization.
         "sale_management",
         "account",
         "stock",
+        "havano_all_in_one",
     ],
     "data": [
         "security/ir.model.access.csv",
-        "views/api_docs_views.xml",
+        "data/sequence_data.xml",
         "views/res_users_views.xml",
+        "views/api_docs_views.xml",
+        "views/product_template_views.xml",
+        # "views/res_company_views.xml",
     ],
+    "post_init_hook": "post_init_hook",
     "installable": True,
     "application": False,
     "auto_install": False,
