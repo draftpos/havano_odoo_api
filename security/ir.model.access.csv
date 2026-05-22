@@ -2,3 +2,6 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_havano_api_documentation_system,havano.api.documentation.system,model_havano_api_documentation,base.group_system,1,1,1,1
 access_havano_api_documentation_user,havano.api.documentation.user,model_havano_api_documentation,base.group_user,1,0,0,0
 access_havano_api_user_workflow,havano.api.user.workflow,model_res_users,base.group_user,1,1,0,0
+access_product_template_unique_name,product.template.unique.name,product.model_product_template,base.group_user,1,1,1,1
+access_res_company_tax_settings,res.company.tax.settings,base.model_res_company,base.group_user,1,1,0,0
+access_ir_sequence_product_code,ir.sequence.product.code,base.model_ir_sequence,base.group_user,1,1,0,0
