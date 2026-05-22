@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Modify the product variant form (product.product) -->
+    <record id="view_product_product_form_rename_code" model="ir.ui.view">
+        <field name="name">product.product.form.rename.code</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_normal_form_view"/>
+        <field name="arch" type="xml">
+            <!-- Target the default_code field directly -->
+            <xpath expr="//field[@name='default_code']" position="attributes">
+                <attribute name="string">ITEM CODE</attribute>
+                <attribute name="required">1</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Modify the list/tree view for product variants -->
+    <record id="view_product_product_tree_rename_code" model="ir.ui.view">
+        <field name="name">product.product.tree.rename.code</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_product_tree_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='default_code']" position="attributes">
+                <attribute name="string">ITEM CODE</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- Modify the kanban view -->
+    <record id="view_product_kanban_rename_code" model="ir.ui.view">
+        <field name="name">product.kanban.rename.code</field>
+        <field name="model">product.product</field>
+        <field name="inherit_id" ref="product.product_kanban_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='default_code']" position="attributes">
+                <attribute name="string">ITEM CODE</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
