@@ -1,6 +1,6 @@
 {
     "name": "Havano Odoo API",
-    "version": "19.0.2.0.4",
+    "version": "19.0.2.0.5",
     "category": "Sales",
     "summary": "REST API for Havano POS: products, pharmacy, doctors, sales, invoices",
     "description": """

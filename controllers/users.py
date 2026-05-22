@@ -17,19 +17,38 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
                 _("Only administrators can manage users via the API.")
             )
 
+    def _partner_phone(self, user):
+        partner = user.partner_id
+        if not partner:
+            return "", ""
+        mobile = partner.mobile if "mobile" in partner._fields else ""
+        return partner.phone or "", mobile or ""
+
+    def _company_payload(self, user):
+        company = user.company_id
+        return {
+            "id": company.id if company else None,
+            "name": company.name if company else "",
+        }
+
     def _serialize_user(self, user):
+        phone, mobile = self._partner_phone(user)
         roles = user._havano_roles_payload()
+        company = self._company_payload(user)
         return {
             "id": user.id,
             "name": user.name or "",
             "login": user.login or "",
             "email": user.email or "",
+            "phone": phone,
+            "mobile": mobile,
             "active": user.active,
             "share": user.share,
             "lang": user.lang or "",
             "tz": user.tz or "",
-            "company_id": user.company_id.id if user.company_id else None,
-            "company_name": user.company_id.name or "",
+            "company": company,
+            "company_id": company["id"],
+            "company_name": company["name"],
             "company_ids": [
                 {"id": c.id, "name": c.name} for c in user.company_ids
             ],
@@ -64,13 +83,13 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
                     "id": "pharmacist",
                     "name": "Pharmacist",
                     "field": "is_pharmacist",
-                    "requires_base_role": True,
+                    "requires_user_or_administrator": True,
                 },
                 {
                     "id": "cashier",
                     "name": "Cashier",
                     "field": "is_cashier",
-                    "requires_base_role": False,
+                    "requires_user_or_administrator": True,
                 },
             ],
             "valid_combinations": [
@@ -82,10 +101,23 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
                 "administrator + pharmacist",
                 "administrator + cashier",
                 "administrator + pharmacist + cashier",
-                "cashier only (no user/admin)",
-                "cashier + pharmacist (requires user or administrator)",
             ],
         }
+
+    def _validate_addon_roles(self, vals):
+        """Pharmacist/Cashier cannot exist without User or Administrator."""
+        if not vals.get("is_pharmacist") and not vals.get("is_cashier"):
+            return
+        role = vals.get("role")
+        if role in (False, None, "") and "role" not in vals:
+            return
+        if role in (False, None, ""):
+            raise ValidationError(
+                _(
+                    "Pharmacist and Cashier require role 'group_user' or "
+                    "'group_system'."
+                )
+            )
 
     def _parse_user_vals(self, data, for_create=False):
         vals = {}
@@ -95,6 +127,10 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
             vals["login"] = data.get("login")
         if "email" in data:
             vals["email"] = data.get("email")
+        if "phone" in data:
+            vals["phone"] = data.get("phone")
+        if "mobile" in data:
+            vals["mobile"] = data.get("mobile")
         if "active" in data:
             vals["active"] = bool(data.get("active"))
         if "lang" in data:
@@ -122,12 +158,8 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
                 raise ValidationError(
                     _("Invalid role. Use 'group_user', 'group_system', or false.")
                 )
-        elif for_create and not (data.get("is_cashier") or roles.get("is_cashier")):
+        elif for_create:
             vals.setdefault("role", "group_user")
-        elif for_create and (data.get("is_cashier") or roles.get("is_cashier")):
-            if "role" not in vals and roles.get("role") is None:
-                vals["role"] = False
-                vals["hao_cashier_only"] = True
 
         if "is_pharmacist" in data or roles.get("is_pharmacist") is not None:
             vals["is_pharmacist"] = bool(
@@ -136,7 +168,29 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
         if "is_cashier" in data or roles.get("is_cashier") is not None:
             vals["is_cashier"] = bool(data.get("is_cashier", roles.get("is_cashier")))
 
+        if vals.get("is_pharmacist") or vals.get("is_cashier"):
+            if vals.get("role") in (False, None, ""):
+                vals["role"] = "group_user"
+
+        self._validate_addon_roles(vals)
         return vals
+
+    @http.route(
+        "/api/v1/users/me",
+        auth="public",
+        methods=["GET"],
+        type="http",
+        csrf=False,
+    )
+    def get_current_user(self, **kwargs):
+        """Return the authenticated user's profile."""
+        return self._handle_route(lambda env: self._get_current_user(env))
+
+    def _get_current_user(self, env):
+        user = env.user
+        if not user or not user.id:
+            raise AccessDenied(_("Not authenticated."))
+        return self._success(self._serialize_user(user))
 
     @http.route(
         "/api/v1/users/roles",
@@ -195,6 +249,8 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
         return self._handle_route(lambda env: self._get_user(env, user_id))
 
     def _get_user(self, env, user_id):
+        if env.user.id == user_id:
+            return self._success(self._serialize_user(env.user))
         self._ensure_user_manager(env)
         user = env["res.users"].browse(user_id)
         if not user.exists() or user.share:
@@ -242,11 +298,12 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
         return self._handle_route(lambda env: self._update_user(env, user_id))
 
     def _update_user(self, env, user_id):
-        self._ensure_user_manager(env)
         data = self._parse_json_data()
         user = env["res.users"].browse(user_id)
         if not user.exists() or user.share:
             raise MissingError(_("User #%s not found.") % user_id)
+        if env.user.id != user_id:
+            self._ensure_user_manager(env)
         vals = self._parse_user_vals(data)
         if not vals:
             raise ValidationError(_("No data provided for update."))
