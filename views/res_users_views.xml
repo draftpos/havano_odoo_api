@@ -4,11 +4,10 @@
         <field name="name">res.users.form.inherit.havano.api</field>
         <field name="model">res.users</field>
         <field name="inherit_id" ref="base.view_users_form"/>
-        <field name="priority" string="50"/>
         <field name="arch" type="xml">
             <xpath expr="//notebook" position="inside">
-                <page string="POS Workflow" name="pos_workflow">
-                    <group string="Automatic POS Workflow Settings">
+                <page string="POS Workflow">
+                    <group string="POS Workflow Settings">
                         <field name="pos_enable_auto_workflow"/>
                         <field name="pos_auto_confirm_sale"/>
                         <field name="pos_auto_create_invoice"/>

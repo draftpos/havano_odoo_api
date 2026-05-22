@@ -1,0 +1,234 @@
+{
+  "info": {
+    "_postman_id": "havano-pharmacy-api-v1",
+    "name": "Havano Pharmacy API (Doctors & Dosages)",
+    "description": "REST API for pharmacy doctors and dosages.\n\n**Auth:** Set `api_key` (from POST /api/v1/auth/login with generate_api_key=true) or use session cookie after login.\n\n**Requires:** Pharmacy activated on company (Inventory → Settings → Activate Pharmacy).\n\n**Base URL example:** `http://localhost:8069`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8069" },
+    { "key": "api_key", "value": "YOUR_API_KEY_HERE" },
+    { "key": "doctor_id", "value": "1" },
+    { "key": "dosage_id", "value": "1" }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-API-Key", "type": "string" },
+      { "key": "value", "value": "{{api_key}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Doctors",
+      "item": [
+        {
+          "name": "List Doctors",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/doctors?limit=100&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "doctors"],
+              "query": [
+                { "key": "limit", "value": "100" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "List active doctors. Requires pharmacy activated."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Doctor by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/doctors/{{doctor_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "doctors", "{{doctor_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Doctor (test data)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tatenda\",\n  \"doctor_reg_no\": \"DR-2026-001\",\n  \"phone\": \"+263771234567\",\n  \"email\": \"dr.tatenda@example.com\",\n  \"street\": \"12 Samora Machel Ave\",\n  \"city\": \"Harare\",\n  \"zip\": \"00263\",\n  \"country_id\": 1,\n  \"is_doctor\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/doctors",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "doctors"]
+            },
+            "description": "Creates a doctor. Name is auto-prefixed with \"Dr \" (e.g. Tatenda → Dr Tatenda). REG number is required. contact_type will be \"doctor\"."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Doctor (test data)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+263779999999\",\n  \"email\": \"dr.tatenda.updated@example.com\",\n  \"doctor_reg_no\": \"DR-2026-001-A\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/doctors/{{doctor_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "doctors", "{{doctor_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Archive Doctor (soft delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/doctors/{{doctor_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "doctors", "{{doctor_id}}"]
+            },
+            "description": "Sets active=false and is_doctor=false."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dosages",
+      "item": [
+        {
+          "name": "List Dosages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dosages?limit=200&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dosages"],
+              "query": [
+                { "key": "limit", "value": "200" },
+                { "key": "offset", "value": "0" }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Dosage by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dosages/{{dosage_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dosages", "{{dosage_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Dosage (test data)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"code\": \"5667775\",\n  \"description\": \"Take 2 tablets 3 times daily for 5 days\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dosages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dosages"]
+            },
+            "description": "Creates dosage. If code already exists, updates the existing record."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Dosage (test data)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Take 1 tablet twice daily after meals for 7 days\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dosages/{{dosage_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dosages", "{{dosage_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Archive Dosage (soft delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/dosages/{{dosage_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "dosages", "{{dosage_id}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Products (reference)",
+      "item": [
+        {
+          "name": "List Products",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products?limit=100&offset=0",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"],
+              "query": [
+                { "key": "limit", "value": "100" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "Products include pharmacy_enabled, is_pharmacy, pharmacy_dosage when pharmacy is active. Pricelist rules with id=null are excluded. Removed fields: out_of_stock_message, description*, tags, attribute_lines."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
