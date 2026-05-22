@@ -168,9 +168,17 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
         if "is_cashier" in data or roles.get("is_cashier") is not None:
             vals["is_cashier"] = bool(data.get("is_cashier", roles.get("is_cashier")))
 
-        if vals.get("is_pharmacist") or vals.get("is_cashier"):
-            if vals.get("role") in (False, None, ""):
-                vals["role"] = "group_user"
+        if (vals.get("is_pharmacist") or vals.get("is_cashier")) and vals.get(
+            "role"
+        ) in (False, None, ""):
+            if "role" in data or "role" in roles:
+                raise ValidationError(
+                    _(
+                        "Pharmacist and Cashier require role 'group_user' or "
+                        "'group_system'."
+                    )
+                )
+            vals["role"] = "group_user"
 
         self._validate_addon_roles(vals)
         return vals
