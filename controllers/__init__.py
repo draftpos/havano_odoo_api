@@ -14,3 +14,4 @@ from . import pricelists
 from . import uom
 from . import dosages
 from . import doctors
+from . import users
