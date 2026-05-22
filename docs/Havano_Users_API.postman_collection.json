@@ -1,0 +1,287 @@
+{
+  "info": {
+    "_postman_id": "havano-users-api-v1",
+    "name": "Havano Users API",
+    "description": "REST API for Odoo users with Havano roles (User, Administrator, Pharmacist, Cashier).\n\n**Auth:** Set `api_key` (from POST /api/v1/auth/login with `generate_api_key: true`) or use a session cookie after login.\n\n**Roles:** Pharmacist and Cashier are add-on roles and require base role `group_user` (User) or `group_system` (Administrator). Cashier-only or Pharmacist-only accounts are not allowed.\n\n**Access:**\n- `GET /api/v1/users/me` — any authenticated user\n- List/create/update/delete users — **Administrator only**\n\n**Base URL example:** `http://localhost:8069`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8069" },
+    { "key": "api_key", "value": "YOUR_API_KEY_HERE" },
+    { "key": "user_id", "value": "2" },
+    { "key": "company_id", "value": "1" }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-API-Key", "type": "string" },
+      { "key": "value", "value": "{{api_key}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (get API key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.api_key) {",
+                  "    pm.collectionVariables.set('api_key', res.data.api_key);",
+                  "    console.log('api_key saved to collection variable');",
+                  "}",
+                  "if (res.success && res.data && res.data.user_id) {",
+                  "    pm.collectionVariables.set('user_id', String(res.data.user_id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"db\": \"showline_odoo\",\n  \"login\": \"admin\",\n  \"password\": \"YOUR_PASSWORD\",\n  \"generate_api_key\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Authenticate and optionally generate an API key. On success, the test script stores `api_key` and `user_id` in collection variables."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get Current User (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "description": "Returns the authenticated user's profile: name, login, email, phone, mobile, company, company_ids, and roles. Any authenticated user."
+          },
+          "response": []
+        },
+        {
+          "name": "Roles Reference",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/roles",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "roles"]
+            },
+            "description": "Lists base roles, add-on roles (Pharmacist, Cashier), and valid combinations. Administrator only."
+          },
+          "response": []
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users?limit=100&offset=0&active_only=true",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"],
+              "query": [
+                { "key": "limit", "value": "100" },
+                { "key": "offset", "value": "0" },
+                { "key": "active_only", "value": "true" }
+              ]
+            },
+            "description": "List internal users with roles. Administrator only."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}"]
+            },
+            "description": "Get one user. Administrators can read any user; other users can read only their own ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Create User + Pharmacist",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.id) {",
+                  "    pm.collectionVariables.set('user_id', String(res.data.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Pharmacist\",\n  \"login\": \"jane.pharmacist@example.com\",\n  \"password\": \"ChangeMe123!\",\n  \"email\": \"jane.pharmacist@example.com\",\n  \"phone\": \"+263771234567\",\n  \"mobile\": \"+263779999999\",\n  \"company_id\": {{company_id}},\n  \"role\": \"group_user\",\n  \"is_pharmacist\": true,\n  \"is_cashier\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Creates a User with Pharmacist add-on role. Administrator only."
+          },
+          "response": []
+        },
+        {
+          "name": "Create User + Cashier",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Cashier\",\n  \"login\": \"john.cashier@example.com\",\n  \"password\": \"ChangeMe123!\",\n  \"email\": \"john.cashier@example.com\",\n  \"phone\": \"+263772345678\",\n  \"company_id\": {{company_id}},\n  \"role\": \"group_user\",\n  \"is_pharmacist\": false,\n  \"is_cashier\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Creates a User with Cashier add-on role. Cashier cannot be used without User or Administrator."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Administrator + Pharmacist",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin Pharmacist\",\n  \"login\": \"admin.pharm@example.com\",\n  \"password\": \"ChangeMe123!\",\n  \"email\": \"admin.pharm@example.com\",\n  \"role\": \"group_system\",\n  \"is_pharmacist\": true,\n  \"is_cashier\": false,\n  \"company_id\": {{company_id}}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Creates an Administrator with Pharmacist add-on role."
+          },
+          "response": []
+        },
+        {
+          "name": "Create User (roles object)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tatenda POS\",\n  \"login\": \"tatenda.pos@example.com\",\n  \"password\": \"ChangeMe123!\",\n  \"email\": \"tatenda@example.com\",\n  \"phone\": \"+263773456789\",\n  \"company_id\": {{company_id}},\n  \"roles\": {\n    \"role\": \"group_user\",\n    \"is_pharmacist\": true,\n    \"is_cashier\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Alternative payload using nested `roles` object (User + Pharmacist + Cashier)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Pharmacist Updated\",\n  \"email\": \"jane.updated@example.com\",\n  \"phone\": \"+263770000001\",\n  \"is_cashier\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}"]
+            },
+            "description": "Update user fields and roles. User can update own record; administrators can update any user."
+          },
+          "response": []
+        },
+        {
+          "name": "Patch User (roles only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roles\": {\n    \"role\": \"group_user\",\n    \"is_pharmacist\": false,\n    \"is_cashier\": true\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}"]
+            },
+            "description": "Partial update using nested roles object."
+          },
+          "response": []
+        },
+        {
+          "name": "Archive User (soft delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}"]
+            },
+            "description": "Sets active=false. Administrator only. Cannot archive your own account."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
