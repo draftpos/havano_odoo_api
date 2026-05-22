@@ -32,8 +32,28 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             _logger.exception("Could not fetch lot info for variant %s: %s", product_variant.id if product_variant else "n/a", str(e))
         return lots
 
+    def _pharmacy_product_fields(self, product):
+        enabled = bool(product.env.company.hao_activate_pharmacy)
+        if not enabled:
+            return {
+                "pharmacy_enabled": False,
+                "is_pharmacy": False,
+                "pharmacy_dosage": None,
+            }
+        dosage = None
+        if product.is_pharmacy and product.pharmacy_dosage_id:
+            dosage = {
+                "id": product.pharmacy_dosage_id.id,
+                "code": product.pharmacy_dosage_id.code or "",
+                "description": product.pharmacy_dosage_id.description or "",
+            }
+        return {
+            "pharmacy_enabled": True,
+            "is_pharmacy": bool(product.is_pharmacy),
+            "pharmacy_dosage": dosage,
+        }
+
     def _serialize_product(self, product):
-        
         """Convert product.template to API response dict."""
         _logger.debug("Serializing product template id=%s name=%s", product.id, product.name)
         has_detailed_type = "detailed_type" in product._fields
@@ -94,31 +114,45 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
         if not product_variant and product.product_variant_ids:
             product_variant = product.product_variant_ids[0]
         
-        # ================================================================
-        # NEW: Get all UoM-specific pricelist rules
-        # ================================================================
-        all_uom_rules = product.env["product.pricelist.item"].search([
-            ('uom_id', '!=', False),
-            '|', ('product_tmpl_id', '=', product.id),
-            '|', ('categ_id', '=', product.categ_id.id),
-                ('categ_id', '=', False),
-        ])
-        
-        # Build available UoMs from rules
+        # UoMs: per-product only when multi-UoM is enabled on this template
         available_uoms = []
-        for rule in all_uom_rules:
-            if rule.uom_id and rule.uom_id not in [u['id'] for u in available_uoms]:
+        if getattr(product, 'allow_multi_uom', False):
+            variant_ids = product.product_variant_ids.ids
+            rule_domain = [
+                ('uom_id', '!=', False),
+                '|',
+                ('product_tmpl_id', '=', product.id),
+                ('product_id', 'in', variant_ids),
+            ]
+            all_uom_rules = product.env['product.pricelist.item'].search(rule_domain)
+            seen_uom_ids = set()
+            for rule in all_uom_rules:
+                if not rule.uom_id or rule.uom_id.id in seen_uom_ids:
+                    continue
+                seen_uom_ids.add(rule.uom_id.id)
                 available_uoms.append({
-                    "id": rule.uom_id.id,
-                    "name": rule.uom_id.name,
-                    "barcode": rule.uom_barcode,
-                    "factor": rule.uom_id.factor,
-                    "rounding": rule.uom_id.rounding,
-                    "pricelist_rule_id": rule.id,
-                    "fixed_price": rule.fixed_price if rule.compute_price == 'fixed' else None,
-                    "has_discount": rule.compute_price == 'percentage',
-                    "discount_percent": rule.percent_price if rule.compute_price == 'percentage' else 0,
+                    'id': rule.uom_id.id,
+                    'name': rule.uom_id.name,
+                    'barcode': rule.uom_barcode,
+                    'factor': rule.uom_id.factor,
+                    'rounding': rule.uom_id.rounding,
+                    'pricelist_rule_id': rule.id,
+                    'fixed_price': rule.fixed_price if rule.compute_price == 'fixed' else None,
+                    'has_discount': rule.compute_price == 'percentage',
+                    'discount_percent': rule.percent_price if rule.compute_price == 'percentage' else 0,
                 })
+        if product.uom_id and product.uom_id.id not in {u['id'] for u in available_uoms}:
+            available_uoms.append({
+                'id': product.uom_id.id,
+                'name': product.uom_id.name,
+                'barcode': False,
+                'factor': product.uom_id.factor,
+                'rounding': product.uom_id.rounding,
+                'pricelist_rule_id': None,
+                'fixed_price': product.list_price,
+                'has_discount': False,
+                'discount_percent': 0,
+            })
         
         pricelist_rules = []
         
@@ -164,9 +198,6 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
                         "calculated_price": price,
                         "date_start": str(rule.date_start) if rule.date_start else None,
                         "date_end": str(rule.date_end) if rule.date_end else None,
-                        # ========================================================
-                        # NEW: Add UoM info to pricelist rules
-                        # ========================================================
                         "uom_id": rule.uom_id.id if rule.uom_id else None,
                         "uom_name": rule.uom_id.name if rule.uom_id else None,
                         "uom_barcode": rule.uom_barcode if hasattr(rule, 'uom_barcode') else None,
@@ -175,41 +206,6 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
                         "target_product_id": rule.product_tmpl_id.id if rule.product_tmpl_id else None,
                         "target_product_name": rule.product_tmpl_id.name if rule.product_tmpl_id else None,
                     })
-            else:
-                # No specific rule found - this pricelist uses default pricing
-                pricelist_rules.append({
-                    "id": None,
-                    "pricelist_id": pricelist.id,
-                    "pricelist_name": pricelist.name,
-                    "pricelist_display_name": pricelist.display_name,
-                    "currency_id": pricelist.currency_id.id,
-                    "currency_name": pricelist.currency_id.name,
-                    "applied_on": "default",
-                    "applied_on_label": "Default Pricing",
-                    "compute_price": "default",
-                    "fixed_price": None,
-                    "percent_price": None,
-                    "price_discount": 0,
-                    "price_surcharge": 0,
-                    "price_round": 0,
-                    "price_markup": 0,
-                    "price_min_margin": 0,
-                    "price_max_margin": 0,
-                    "min_quantity": 0,
-                    "calculated_price": price,
-                    "date_start": None,
-                    "date_end": None,
-                    # ========================================================
-                    # NEW: Add UoM info (default UoM only)
-                    # ========================================================
-                    "uom_id": product.uom_id.id,
-                    "uom_name": product.uom_id.name,
-                    "uom_barcode": None,
-                    "target_category_id": None,
-                    "target_category_name": None,
-                    "target_product_id": None,
-                    "target_product_name": None,
-                })
         
         # Sort pricelist rules
         pricelist_rules.sort(key=lambda x: (x.get("min_quantity", 0), x.get("pricelist_name", "")))
@@ -274,6 +270,7 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             "allow_multi_uom": getattr(product, 'allow_multi_uom', False),
             "strict_uom_tracking": getattr(product, 'strict_uom_tracking', False),
             "available_uoms": available_uoms,  # List of UoMs with prices from pricelist rules
+            **self._pharmacy_product_fields(product),
             
             "tracking": product.tracking if hasattr(product, 'tracking') else "none",
             "use_expiration_date": product.use_expiration_date if hasattr(product, 'use_expiration_date') else False,
@@ -299,17 +296,6 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             "warehouse_stock": warehouse_stock,
             
             "inventory_availability": product.inventory_availability if hasattr(product, 'inventory_availability') else "never",
-            "out_of_stock_message": product.out_of_stock_message if hasattr(product, 'out_of_stock_message') and product.out_of_stock_message else "",
-            
-            "description": product.description or "",
-            "description_sale": product.description_sale or "",
-            "description_purchase": product.description_purchase or "",
-            
-            "tags": [{
-                "id": tag.id, "name": tag.name, "color": tag.color,
-                "visible_to_customers": tag.visible_to_customers,
-            } for tag in product.product_tag_ids],
-            
             "taxes": [{
                 "id": tax.id, "name": tax.name, "amount": tax.amount,
                 "type_tax_use": tax.type_tax_use,
@@ -323,20 +309,6 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             "variant_count": product.product_variant_count,
             "variant_id": product.product_variant_id.id if product.product_variant_id else False,
             "variants": variants,
-            "attribute_lines": [{
-                "id": line.id,
-                "attribute_id": line.attribute_id.id,
-                "attribute_name": line.attribute_id.name,
-                "display_type": line.attribute_id.display_type,
-                "create_variant": line.attribute_id.create_variant,
-                "sequence": line.sequence,
-                "values": [{
-                    "id": val.id, "name": val.name, "price_extra": val.price_extra,
-                    "html_color": val.html_color or "", "is_custom": val.is_custom,
-                    "image": val.image.decode() if val.image else None,
-                } for val in line.product_template_value_ids],
-            } for line in product.attribute_line_ids],
-            
             "suppliers": suppliers,
             "pricelist_rules": pricelist_rules,
             

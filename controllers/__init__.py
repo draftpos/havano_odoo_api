@@ -12,3 +12,5 @@ from . import stock
 from . import dashboard
 from . import pricelists
 from . import uom
+from . import dosages
+from . import doctors
