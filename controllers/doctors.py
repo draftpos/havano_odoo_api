@@ -109,7 +109,7 @@ class HavanoDoctorsController(HavanoApiControllerMixin, http.Controller):
             raise MissingError(_("Doctor #%s not found.") % doctor_id)
         return self._success(self._serialize_doctor(partner))
 
-    @http.route("/api/v1/doctors", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/doctors", auth="public", methods=["POST"], type="http", csrf=False)
     def create_doctor(self, **kwargs):
         return self._handle_route(lambda env: self._create_doctor(env))
 
@@ -128,7 +128,7 @@ class HavanoDoctorsController(HavanoApiControllerMixin, http.Controller):
         _logger.info("Doctor created via API: id=%s name=%s", partner.id, partner.name)
         return self._success(self._serialize_doctor(partner), message=_("Doctor created."), status=201)
 
-    @http.route("/api/v1/doctors/<int:doctor_id>", auth="public", methods=["PUT", "PATCH", "POST"], type="json", csrf=False)
+    @http.route("/api/v1/doctors/<int:doctor_id>", auth="public", methods=["PUT", "PATCH", "POST"], type="http", csrf=False)
     def update_doctor(self, doctor_id, **kwargs):
         return self._handle_route(lambda env: self._update_doctor(env, doctor_id))
 
@@ -146,7 +146,7 @@ class HavanoDoctorsController(HavanoApiControllerMixin, http.Controller):
         partner.write(vals)
         return self._success(self._serialize_doctor(partner), message=_("Doctor updated."))
 
-    @http.route("/api/v1/doctors/<int:doctor_id>", auth="public", methods=["DELETE"], type="json", csrf=False)
+    @http.route("/api/v1/doctors/<int:doctor_id>", auth="public", methods=["DELETE"], type="http", csrf=False)
     def delete_doctor(self, doctor_id, **kwargs):
         return self._handle_route(lambda env: self._delete_doctor(env, doctor_id))
 

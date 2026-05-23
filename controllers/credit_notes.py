@@ -8,7 +8,7 @@ _logger = logging.getLogger(__name__)
 
 class HavanoCreditNotesController(HavanoApiControllerMixin, http.Controller):
     
-    @http.route("/api/v1/credit-notes", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/credit-notes", auth="public", methods=["POST"], type="http", csrf=False)
     def create_credit_note(self, **kwargs):
         """POST /api/v1/credit-notes - Create credit note from invoice."""
         return self._handle_route(lambda env: self._create_credit_note(env))
@@ -52,7 +52,7 @@ class HavanoCreditNotesController(HavanoApiControllerMixin, http.Controller):
             "invoice_id": invoice.id,
         }, message=_("Credit note created."), status=201)
     
-    @http.route("/api/v1/credit-notes", auth="public", methods=["GET"], type="json", csrf=False)
+    @http.route("/api/v1/credit-notes", auth="public", methods=["GET"], type="http", csrf=False)
     def list_credit_notes(self, limit=100, **kwargs):
         """GET /api/v1/credit-notes - List credit notes."""
         return self._handle_route(lambda env: self._list_credit_notes(env, limit))

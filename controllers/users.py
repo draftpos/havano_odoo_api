@@ -269,7 +269,7 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
         "/api/v1/users",
         auth="public",
         methods=["POST"],
-        type="json",
+        type="http",
         csrf=False,
     )
     def create_user(self, **kwargs):
@@ -299,7 +299,7 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
         "/api/v1/users/<int:user_id>",
         auth="public",
         methods=["PUT", "PATCH", "POST"],
-        type="json",
+        type="http",
         csrf=False,
     )
     def update_user(self, user_id, **kwargs):
@@ -325,7 +325,7 @@ class HavanoUsersController(HavanoApiControllerMixin, http.Controller):
         "/api/v1/users/<int:user_id>",
         auth="public",
         methods=["DELETE"],
-        type="json",
+        type="http",
         csrf=False,
     )
     def delete_user(self, user_id, **kwargs):

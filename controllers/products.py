@@ -320,6 +320,7 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             "available_uoms": available_uoms,  # List of UoMs with prices from pricelist rules
             **self._pharmacy_product_fields(product),
             **self._bundle_product_fields(product),
+            **self._inventory_order_fields(product),
             
             "tracking": product.tracking if hasattr(product, 'tracking') else "none",
             "use_expiration_date": product.use_expiration_date if hasattr(product, 'use_expiration_date') else False,
@@ -411,7 +412,7 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             _logger.exception("Failed to serialize single product id=%s: %s", product.id, str(exc))
             raise
     
-    @http.route("/api/v1/products", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/products", auth="public", methods=["POST"], type="http", csrf=False)
     def create_product(self, **kwargs):
         """POST /api/v1/products - Create or update product by SKU."""
         return self._handle_route(lambda env: self._upsert_product(env))
@@ -435,7 +436,10 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
         
         if product:
             product.write(vals)
-            msg = _("Product updated.")
+            if is_bundle:
+                msg = _("Product bundle updated successfully.")
+            else:
+                msg = _("Product updated successfully.")
             status = 200
         else:
             if not is_bundle:
@@ -443,7 +447,10 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
                 vals.setdefault("sale_ok", True)
                 vals.setdefault("purchase_ok", True)
             product = env["product.template"].create(vals)
-            msg = _("Product created.")
+            if is_bundle:
+                msg = _("Product bundle created successfully.")
+            else:
+                msg = _("Product created successfully.")
             status = 201
         
         _logger.info("Product %s: id=%s, sku=%s", "updated" if status == 200 else "created", 
@@ -451,7 +458,7 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
         
         return self._success(self._serialize_product(product), message=msg, status=status)
     
-    @http.route("/api/v1/products/<int:product_id>", auth="public", methods=["PUT", "POST"], type="json", csrf=False)
+    @http.route("/api/v1/products/<int:product_id>", auth="public", methods=["PUT", "POST"], type="http", csrf=False)
     def update_product(self, product_id, **kwargs):
         """PUT /api/v1/products/:id - Update product."""
         return self._handle_route(lambda env: self._update_product(env, product_id))
@@ -465,9 +472,13 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             raise ValidationError(_("No data provided for update."))
         vals = self._prepare_product_vals(env, data)
         product.write(vals)
-        return self._success(self._serialize_product(product), message=_("Product updated."))
+        if product.is_product_bundle:
+            msg = _("Product bundle updated successfully.")
+        else:
+            msg = _("Product updated successfully.")
+        return self._success(self._serialize_product(product), message=msg)
 
-    @http.route("/api/v1/products/<int:product_id>", auth="public", methods=["DELETE"], type="json", csrf=False)
+    @http.route("/api/v1/products/<int:product_id>", auth="public", methods=["DELETE"], type="http", csrf=False)
     def delete_product(self, product_id, **kwargs):
         """DELETE /api/v1/products/:id - Archive product."""
         return self._handle_route(lambda env: self._delete_product(env, product_id))
@@ -515,7 +526,7 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
         })
  
 
-    @http.route("/api/v1/products/<int:product_id>/price", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/products/<int:product_id>/price", auth="public", methods=["POST"], type="http", csrf=False)
     def calculate_product_price(self, product_id, **kwargs):
         """POST /api/v1/products/:id/price - Calculate product price using specific pricelist
         

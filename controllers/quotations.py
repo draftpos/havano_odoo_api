@@ -8,7 +8,7 @@ _logger = logging.getLogger(__name__)
 
 class HavanoQuotationsController(HavanoApiControllerMixin, http.Controller):
     
-    @http.route("/api/v1/quotations", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/quotations", auth="public", methods=["POST"], type="http", csrf=False)
     def create_quotation(self, **kwargs):
         """POST /api/v1/quotations - Create quotation (draft sales order)."""
         return self._handle_route(lambda env: self._create_quotation(env))
@@ -98,7 +98,7 @@ class HavanoQuotationsController(HavanoApiControllerMixin, http.Controller):
             "amount_total": order.amount_total,
         }, message=_("Quotation created."), status=201)
     
-    @http.route("/api/v1/quotations/<int:quotation_id>/send", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/quotations/<int:quotation_id>/send", auth="public", methods=["POST"], type="http", csrf=False)
     def send_quotation(self, quotation_id, **kwargs):
         """POST /api/v1/quotations/:id/send - Send quotation by email."""
         return self._handle_route(lambda env: self._send_quotation(env, quotation_id))

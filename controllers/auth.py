@@ -67,9 +67,9 @@ class HavanoAuthController(http.Controller):
             # Parameters: scope, name, expiration_date
             # scope=None means access to any RPC call
             api_key = ApiKey._generate(
-                scope=None,
+                scope="rpc",
                 name=name,
-                expiration_date=None  # Persistent key (no expiration)
+                expiration_date=None,  # Persistent key (no expiration)
             )
             
             if api_key:
@@ -101,6 +101,8 @@ class HavanoAuthController(http.Controller):
             company_ctx = self._company_context()
             return request.make_json_response({
                 "success": False,
+                "data": {},
+                "message": "",
                 "error": "Login and password are required.",
                 "code": 400,
                 "company": company_ctx["company"],
@@ -122,6 +124,8 @@ class HavanoAuthController(http.Controller):
                 company_ctx = self._company_context()
                 return request.make_json_response({
                     "success": False,
+                    "data": {},
+                    "message": "",
                     "error": "Invalid credentials.",
                     "code": 401,
                     "company": company_ctx["company"],
@@ -176,6 +180,8 @@ class HavanoAuthController(http.Controller):
             company_ctx = self._company_context()
             return request.make_json_response({
                 "success": False,
+                "data": {},
+                "message": "",
                 "error": "Invalid credentials.",
                 "code": 401,
                 "company": company_ctx["company"],

@@ -68,7 +68,7 @@ class HavanoDosagesController(HavanoApiControllerMixin, http.Controller):
             raise MissingError(_("Dosage #%s not found.") % dosage_id)
         return self._success(self._serialize_dosage(dosage))
 
-    @http.route("/api/v1/dosages", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/dosages", auth="public", methods=["POST"], type="http", csrf=False)
     def create_dosage(self, **kwargs):
         return self._handle_route(lambda env: self._create_dosage(env))
 
@@ -88,7 +88,7 @@ class HavanoDosagesController(HavanoApiControllerMixin, http.Controller):
         dosage = env["pharmacy.dosage"].create(vals)
         return self._success(self._serialize_dosage(dosage), message=_("Dosage created."), status=201)
 
-    @http.route("/api/v1/dosages/<int:dosage_id>", auth="public", methods=["PUT", "PATCH", "POST"], type="json", csrf=False)
+    @http.route("/api/v1/dosages/<int:dosage_id>", auth="public", methods=["PUT", "PATCH", "POST"], type="http", csrf=False)
     def update_dosage(self, dosage_id, **kwargs):
         return self._handle_route(lambda env: self._update_dosage(env, dosage_id))
 
@@ -105,7 +105,7 @@ class HavanoDosagesController(HavanoApiControllerMixin, http.Controller):
         dosage.write(vals)
         return self._success(self._serialize_dosage(dosage), message=_("Dosage updated."))
 
-    @http.route("/api/v1/dosages/<int:dosage_id>", auth="public", methods=["DELETE"], type="json", csrf=False)
+    @http.route("/api/v1/dosages/<int:dosage_id>", auth="public", methods=["DELETE"], type="http", csrf=False)
     def delete_dosage(self, dosage_id, **kwargs):
         return self._handle_route(lambda env: self._delete_dosage(env, dosage_id))
 

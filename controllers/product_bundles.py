@@ -62,34 +62,101 @@ class HavanoProductBundlesController(HavanoApiControllerMixin, http.Controller):
             "line_count": len(lines),
         }
 
-    def _resolve_component_product(self, env, line_data):
+    def _resolve_component_product(self, env, line_data, line_index):
+        """Resolve component variant; accept template id as fallback for POS."""
         product_id = line_data.get("product_id") or line_data.get(
             "component_product_id"
         )
         if not product_id:
             raise ValidationError(
-                _("Each bundle line requires product_id (component product).")
+                _(
+                    "Line %(line)s: product_id is required (variant id from "
+                    "product.product, not the bundle template id).",
+                    line=line_index,
+                )
             )
-        product = env["product.product"].browse(int(product_id))
-        if not product.exists():
-            raise ValidationError(_("Component product #%s not found.") % product_id)
-        if product.type == "service":
+
+        try:
+            pid = int(product_id)
+        except (TypeError, ValueError) as exc:
             raise ValidationError(
-                _("Bundle component #%s cannot be a service product.") % product_id
+                _("Line %(line)s: product_id must be a number, got %(value)r.", line=line_index, value=product_id)
+            ) from exc
+
+        product = env["product.product"].browse(pid)
+        if not product.exists():
+            tmpl = env["product.template"].browse(pid)
+            if tmpl.exists():
+                variant = tmpl.product_variant_id or (
+                    tmpl.product_variant_ids[:1] if tmpl.product_variant_ids else False
+                )
+                if variant:
+                    _logger.info(
+                        "Bundle line %s: resolved template id %s to variant id %s",
+                        line_index,
+                        pid,
+                        variant.id,
+                    )
+                    product = variant
+            if not product.exists():
+                raise ValidationError(
+                    _(
+                        "Line %(line)s: product #%(pid)s not found. Use the component "
+                        "variant id (product.product), not the bundle parent id.",
+                        line=line_index,
+                        pid=pid,
+                    )
+                )
+
+        product_type = product.type
+        if "detailed_type" in product._fields:
+            product_type = product.detailed_type
+        if product_type == "service":
+            raise ValidationError(
+                _(
+                    "Line %(line)s: product #%(pid)s (%(name)s) cannot be a "
+                    "service product.",
+                    line=line_index,
+                    pid=product.id,
+                    name=product.display_name,
+                )
             )
         return product
 
-    def _parse_bundle_line_vals(self, env, line_data, sequence=10):
-        component = self._resolve_component_product(env, line_data)
-        qty = float(line_data.get("quantity", 1.0))
+    def _parse_bundle_line_vals(self, env, line_data, sequence=10, line_index=1):
+        if not isinstance(line_data, dict):
+            raise ValidationError(
+                _(
+                    "Line %(line)s: each entry in lines must be an object, got %(type)s.",
+                    line=line_index,
+                    type=type(line_data).__name__,
+                )
+            )
+
+        component = self._resolve_component_product(env, line_data, line_index)
+        try:
+            qty = float(line_data.get("quantity", 1.0))
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(
+                _("Line %(line)s: invalid quantity %(value)r.", line=line_index, value=line_data.get("quantity"))
+            ) from exc
         if qty <= 0:
-            raise ValidationError(_("Bundle line quantity must be greater than zero."))
+            raise ValidationError(
+                _("Line %(line)s: quantity must be greater than zero.", line=line_index)
+            )
 
         uom_id = line_data.get("uom_id")
         if uom_id:
-            uom = env["uom.uom"].browse(int(uom_id))
+            try:
+                uom = env["uom.uom"].browse(int(uom_id))
+            except (TypeError, ValueError) as exc:
+                raise ValidationError(
+                    _("Line %(line)s: invalid uom_id %(value)r.", line=line_index, value=uom_id)
+                ) from exc
             if not uom.exists():
-                raise ValidationError(_("UOM #%s not found.") % uom_id)
+                raise ValidationError(
+                    _("Line %(line)s: UOM #%(uom)s not found.", line=line_index, uom=uom_id)
+                )
         else:
             uom = component.uom_id
 
@@ -101,30 +168,92 @@ class HavanoProductBundlesController(HavanoApiControllerMixin, http.Controller):
         if sale_price is None:
             sale_price = component.lst_price
 
-        return {
-            "sequence": line_data.get("sequence", sequence),
-            "component_product_id": component.id,
-            "quantity": qty,
-            "uom_id": uom.id,
-            "cost_price": float(cost_price),
-            "unit_price": float(sale_price),
-        }
+        try:
+            return {
+                "sequence": line_data.get("sequence", sequence),
+                "component_product_id": component.id,
+                "quantity": qty,
+                "uom_id": uom.id,
+                "cost_price": float(cost_price),
+                "unit_price": float(sale_price),
+            }
+        except (TypeError, ValueError) as exc:
+            raise ValidationError(
+                _(
+                    "Line %(line)s: invalid cost_price or sale_price.",
+                    line=line_index,
+                )
+            ) from exc
+
+    def _extract_bundle_lines(self, data):
+        lines = data.get("lines")
+        if lines is None:
+            lines = data.get("bundle_lines")
+        if lines is None:
+            lines = data.get("bundle_line_ids")
+        return lines
 
     def _apply_bundle_lines(self, product, lines_data):
-        if not lines_data:
-            raise ValidationError(_("At least one bundle line is required."))
-        line_vals = []
-        for idx, line_data in enumerate(lines_data):
-            line_vals.append(
-                (
-                    0,
-                    0,
-                    self._parse_bundle_line_vals(
-                        product.env, line_data, sequence=(idx + 1) * 10
-                    ),
+        if lines_data is None:
+            raise ValidationError(
+                _(
+                    "Missing bundle lines. Send a JSON body with a lines array, e.g. "
+                    '{"lines": [{"product_id": 123, "quantity": 1, "sale_price": 10.0}]}'
                 )
             )
-        product.write({"bundle_line_ids": [(5, 0, 0)] + line_vals})
+        if not isinstance(lines_data, list):
+            raise ValidationError(
+                _(
+                    "lines must be an array, got %(type)s.",
+                    type=type(lines_data).__name__,
+                )
+            )
+        if not lines_data:
+            raise ValidationError(
+                _("At least one bundle line is required in lines (array is empty).")
+            )
+
+        line_vals = []
+        for idx, line_data in enumerate(lines_data):
+            line_index = idx + 1
+            try:
+                line_vals.append(
+                    (
+                        0,
+                        0,
+                        self._parse_bundle_line_vals(
+                            product.env,
+                            line_data,
+                            sequence=line_index * 10,
+                            line_index=line_index,
+                        ),
+                    )
+                )
+            except ValidationError:
+                raise
+            except Exception as exc:
+                _logger.exception(
+                    "Bundle line parse failed product_id=%s line=%s",
+                    product.id,
+                    line_index,
+                )
+                raise ValidationError(
+                    _("Line %(line)s: %(error)s", line=line_index, error=str(exc))
+                ) from exc
+
+        try:
+            product.write({"bundle_line_ids": [(5, 0, 0)] + line_vals})
+        except ValidationError:
+            raise
+        except Exception as exc:
+            _logger.exception(
+                "Bundle write failed product_id=%s lines=%s",
+                product.id,
+                len(line_vals),
+            )
+            raise ValidationError(
+                _("Could not save bundle lines: %(error)s", error=str(exc))
+            ) from exc
 
     @http.route(
         "/api/v1/products/<int:product_id>/bundle",
@@ -146,7 +275,7 @@ class HavanoProductBundlesController(HavanoApiControllerMixin, http.Controller):
         "/api/v1/products/<int:product_id>/bundle",
         auth="public",
         methods=["POST", "PUT", "PATCH"],
-        type="json",
+        type="http",
         csrf=False,
     )
     def set_product_bundle(self, product_id, **kwargs):
@@ -165,6 +294,15 @@ class HavanoProductBundlesController(HavanoApiControllerMixin, http.Controller):
             )
 
         data = self._parse_json_data()
+        lines = self._extract_bundle_lines(data)
+
+        _logger.info(
+            "Bundle API request product_id=%s keys=%s line_count=%s",
+            product_id,
+            sorted(data.keys()) if isinstance(data, dict) else type(data).__name__,
+            len(lines) if isinstance(lines, list) else "n/a",
+        )
+
         write_vals = {}
 
         if not product.is_product_bundle:
@@ -182,14 +320,6 @@ class HavanoProductBundlesController(HavanoApiControllerMixin, http.Controller):
         if write_vals:
             product.write(write_vals)
 
-        lines = data.get("lines") or data.get("bundle_lines") or data.get(
-            "bundle_line_ids"
-        )
-        if lines is None:
-            raise ValidationError(
-                _("Bundle lines are required (lines / bundle_lines).")
-            )
-
         self._apply_bundle_lines(product, lines)
 
         if "list_price" not in data:
@@ -203,5 +333,5 @@ class HavanoProductBundlesController(HavanoApiControllerMixin, http.Controller):
         )
         return self._success(
             self._serialize_bundle(product),
-            message=_("Product bundle components saved."),
+            message=_("Product bundle lines saved successfully."),
         )

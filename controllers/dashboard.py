@@ -4,7 +4,7 @@ from .common import HavanoApiControllerMixin
 
 class HavanoDashboardController(HavanoApiControllerMixin, http.Controller):
     
-    @http.route("/api/v1/dashboard", auth="public", methods=["GET", "POST"], type="json", csrf=False)
+    @http.route("/api/v1/dashboard", auth="public", methods=["GET", "POST"], type="http", csrf=False)
     def get_dashboard(self, **kwargs):
         """GET /api/v1/dashboard - Get dashboard summary."""
         return self._handle_route(lambda env: self._get_dashboard(env))
@@ -78,7 +78,7 @@ class HavanoDashboardController(HavanoApiControllerMixin, http.Controller):
             },
         })
     
-    @http.route("/api/v1/dashboard/top-products", auth="public", methods=["GET", "POST"], type="json", csrf=False)
+    @http.route("/api/v1/dashboard/top-products", auth="public", methods=["GET", "POST"], type="http", csrf=False)
     def get_top_products(self, limit=10, **kwargs):
         """GET /api/v1/dashboard/top-products - Get top selling products."""
         return self._handle_route(lambda env: self._get_top_products(env, limit))

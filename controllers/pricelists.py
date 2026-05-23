@@ -131,7 +131,7 @@ class HavanoPricelistsController(HavanoApiControllerMixin, http.Controller):
     # PRICE CALCULATION ENDPOINTS
     # ================================================================
     
-    @http.route("/api/v1/pricelists/<int:pricelist_id>/price", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/pricelists/<int:pricelist_id>/price", auth="public", methods=["POST"], type="http", csrf=False)
     def calculate_price(self, pricelist_id, **kwargs):
         """POST /api/v1/pricelists/:id/price - Calculate product price using this pricelist
         
@@ -219,7 +219,7 @@ class HavanoPricelistsController(HavanoApiControllerMixin, http.Controller):
             "pricelist_name": pricelist.name,
         })
     
-    @http.route("/api/v1/pricelists/calculate-batch", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/pricelists/calculate-batch", auth="public", methods=["POST"], type="http", csrf=False)
     def calculate_batch_prices(self, **kwargs):
         """POST /api/v1/pricelists/calculate-batch - Calculate prices for multiple products
         

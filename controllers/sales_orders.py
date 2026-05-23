@@ -37,7 +37,7 @@ class HavanoSalesOrdersController(HavanoApiControllerMixin, http.Controller):
             "line_count": len(lines),
         }
     
-    @http.route("/api/v1/sales-orders", auth="public", methods=["GET"], type="json", csrf=False)
+    @http.route("/api/v1/sales-orders", auth="public", methods=["GET"], type="http", csrf=False)
     def list_orders(self, limit=100, offset=0, state=None, **kwargs):
         """GET /api/v1/sales-orders - List sales orders."""
         return self._handle_route(lambda env: self._list_orders(env, limit, offset, state))
@@ -72,7 +72,7 @@ class HavanoSalesOrdersController(HavanoApiControllerMixin, http.Controller):
             "offset": offset,
         })
     
-    @http.route("/api/v1/sales-orders/<int:order_id>", auth="public", methods=["GET"], type="json", csrf=False)
+    @http.route("/api/v1/sales-orders/<int:order_id>", auth="public", methods=["GET"], type="http", csrf=False)
     def get_order(self, order_id, **kwargs):
         """GET /api/v1/sales-orders/:id - Get single order with lines."""
         return self._handle_route(lambda env: self._get_order(env, order_id))
@@ -84,7 +84,7 @@ class HavanoSalesOrdersController(HavanoApiControllerMixin, http.Controller):
         
         return self._success(self._serialize_order(order))
     
-    @http.route("/api/v1/sales-orders", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/sales-orders", auth="public", methods=["POST"], type="http", csrf=False)
     def create_order(self, **kwargs):
         """POST /api/v1/sales-orders - Create sales order."""
         return self._handle_route(lambda env: self._create_order(env))
@@ -186,7 +186,7 @@ class HavanoSalesOrdersController(HavanoApiControllerMixin, http.Controller):
         return self._success(self._serialize_order(order), 
                            message=_("Sales order created."), status=201)
     
-    @http.route("/api/v1/sales-orders/<int:order_id>/confirm", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/sales-orders/<int:order_id>/confirm", auth="public", methods=["POST"], type="http", csrf=False)
     def confirm_order(self, order_id, **kwargs):
         """POST /api/v1/sales-orders/:id/confirm - Confirm sales order."""
         return self._handle_route(lambda env: self._confirm_order(env, order_id))
@@ -207,7 +207,7 @@ class HavanoSalesOrdersController(HavanoApiControllerMixin, http.Controller):
         return self._success(self._serialize_order(order), 
                            message=_("Sales order confirmed."))
     
-    @http.route("/api/v1/sales-orders/<int:order_id>/cancel", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/sales-orders/<int:order_id>/cancel", auth="public", methods=["POST"], type="http", csrf=False)
     def cancel_order(self, order_id, **kwargs):
         """POST /api/v1/sales-orders/:id/cancel - Cancel sales order."""
         return self._handle_route(lambda env: self._cancel_order(env, order_id))

@@ -89,7 +89,7 @@ class HavanoUomController(HavanoApiControllerMixin, http.Controller):
             raise MissingError(_("Unit of Measure #%s not found.") % uom_id)
         return self._success(self._serialize_uom(uom))
     
-    @http.route("/api/v1/uom/convert", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/uom/convert", auth="public", methods=["POST"], type="http", csrf=False)
     def convert_quantity(self, **kwargs):
         """POST /api/v1/uom/convert - Convert quantity between UoMs
         
@@ -252,7 +252,7 @@ class HavanoUomController(HavanoApiControllerMixin, http.Controller):
     # CREATE/UPDATE PACKAGING ENDPOINTS
     # ================================================================
     
-    @http.route("/api/v1/product-packagings", auth="public", methods=["POST"], type="json", csrf=False)
+    @http.route("/api/v1/product-packagings", auth="public", methods=["POST"], type="http", csrf=False)
     def create_packaging(self, **kwargs):
         """POST /api/v1/product-packagings - Create product packaging
         
@@ -305,7 +305,7 @@ class HavanoUomController(HavanoApiControllerMixin, http.Controller):
         return self._success(self._serialize_packaging(packaging), 
                            message=_("Packaging created."), status=201)
     
-    @http.route("/api/v1/product-packagings/<int:packaging_id>", auth="public", methods=["PUT", "POST"], type="json", csrf=False)
+    @http.route("/api/v1/product-packagings/<int:packaging_id>", auth="public", methods=["PUT", "POST"], type="http", csrf=False)
     def update_packaging(self, packaging_id, **kwargs):
         """PUT /api/v1/product-packagings/:id - Update packaging"""
         return self._handle_route(lambda env: self._update_packaging(env, packaging_id))
@@ -338,7 +338,7 @@ class HavanoUomController(HavanoApiControllerMixin, http.Controller):
         return self._success(self._serialize_packaging(packaging), 
                            message=_("Packaging updated."))
     
-    @http.route("/api/v1/product-packagings/<int:packaging_id>", auth="public", methods=["DELETE"], type="json", csrf=False)
+    @http.route("/api/v1/product-packagings/<int:packaging_id>", auth="public", methods=["DELETE"], type="http", csrf=False)
     def delete_packaging(self, packaging_id, **kwargs):
         """DELETE /api/v1/product-packagings/:id - Delete packaging"""
         return self._handle_route(lambda env: self._delete_packaging(env, packaging_id))

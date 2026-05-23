@@ -124,6 +124,7 @@ class HavanoStockController(HavanoApiControllerMixin, http.Controller):
             "type": product.type or "product",
             "active": product.active,
             "image_128": product.image_128.decode() if product.image_128 else None,
+            **self._inventory_order_fields(product),
         }
     
     def _get_general_stock(self, env, product):
@@ -147,6 +148,7 @@ class HavanoStockController(HavanoApiControllerMixin, http.Controller):
             "type": product.type or "product",
             "active": product.active,
             "image_128": product.image_128.decode() if product.image_128 else None,
+            **self._inventory_order_fields(product),
         }
     
     @http.route("/api/v1/stock/warehouse/<int:warehouse_id>/products", auth="public", methods=["GET", "POST"], type="http", csrf=False)

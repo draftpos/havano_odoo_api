@@ -34,23 +34,82 @@ class HavanoApiControllerMixin:
     def _success(self, data=None, message="", status=200):
         """Standard success response."""
         company_ctx = self._get_company_context()
-        return {
+        payload = {
             "success": True,
             "data": data or {},
             "message": message,
             "company": company_ctx["company"],
             "allowed_companies": company_ctx["allowed_companies"],
         }
+        if status != 200:
+            payload["__http_status__"] = status
+        return payload
 
-    def _error(self, error, code=400, status=None):
+    def _error(self, error, code=400, status=None, data=None):
         """Standard error response."""
         company_ctx = self._get_company_context()
-        return {
+        error_text = str(error)
+        payload = {
             "success": False,
-            "error": str(error),
+            "data": data if data is not None else {},
+            "message": error_text,
+            "error": error_text,
             "code": code,
             "company": company_ctx["company"],
             "allowed_companies": company_ctx["allowed_companies"],
+        }
+        http_status = status if status is not None else code
+        if http_status != 200:
+            payload["__http_status__"] = http_status
+        return payload
+
+    def _normalize_api_payload(self, result):
+        """Ensure every API response has success, data, and message keys."""
+        if not isinstance(result, dict):
+            return result
+        if "success" not in result:
+            return self._success(result)
+        if "data" not in result:
+            result["data"] = {}
+        if "message" not in result:
+            result["message"] = ""
+        if not result.get("success") and result.get("data") is None:
+            result["data"] = {}
+        return result
+
+    def _respond(self, payload, default_status=200):
+        """Return JSON HTTP response from a standard API payload dict."""
+        payload = self._normalize_api_payload(payload)
+        status = default_status
+        if isinstance(payload, dict) and "__http_status__" in payload:
+            status = int(payload.pop("__http_status__"))
+        return request.make_json_response(payload, status=status)
+
+    def _inventory_order_fields(self, product_record):
+        """Order 1–5 flags from havano_all_in_one (template or variant)."""
+        if product_record._name == "product.template":
+            template = product_record
+        else:
+            template = product_record.product_tmpl_id
+        if "order_1" not in template._fields:
+            return {"inventory_orders_enabled": False}
+        enabled = bool(template.env.company.hao_activate_inventory_orders)
+        if not enabled:
+            return {
+                "inventory_orders_enabled": False,
+                "order_1": False,
+                "order_2": False,
+                "order_3": False,
+                "order_4": False,
+                "order_5": False,
+            }
+        return {
+            "inventory_orders_enabled": True,
+            "order_1": bool(template.order_1),
+            "order_2": bool(template.order_2),
+            "order_3": bool(template.order_3),
+            "order_4": bool(template.order_4),
+            "order_5": bool(template.order_5),
         }
 
     def _get_company_context(self):
@@ -79,13 +138,33 @@ class HavanoApiControllerMixin:
     # =========================================================================
 
     def _parse_json_data(self):
-        """Parse JSON body from request."""
+        """Parse JSON body from request (supports POS jsonrpc-style wrappers)."""
         try:
             raw_data = request.httprequest.get_data(cache=False, as_text=True) or "{}"
-            return json.loads(raw_data)
+            data = json.loads(raw_data) if raw_data.strip() else {}
         except Exception as exc:
-            _logger.warning("Invalid JSON payload: %s", exc)
+            _logger.warning(
+                "Invalid JSON payload on %s: %s body=%r",
+                request.httprequest.path,
+                exc,
+                (raw_data[:500] if "raw_data" in dir() else ""),
+            )
             raise ValidationError(_("Invalid JSON payload.")) from exc
+
+        if isinstance(data, dict):
+            if "params" in data and isinstance(data["params"], dict):
+                data = data["params"]
+            elif "params" in data and isinstance(data["params"], list) and data["params"]:
+                first = data["params"][0]
+                if isinstance(first, dict):
+                    data = first
+            if (
+                isinstance(data.get("data"), dict)
+                and "lines" not in data
+                and any(k in data.get("data", {}) for k in ("lines", "bundle_lines"))
+            ):
+                data = {**data, **data["data"]}
+        return data
 
     def _get_param(self, key, default=None, cast=None):
         """Get parameter from query string or JSON body."""
@@ -180,29 +259,47 @@ class HavanoApiControllerMixin:
             result = handler(env)
             if isinstance(result, Response):
                 return result
-            if hasattr(request, 'make_json_response'):
-                return request.make_json_response(result)
-            return result
+            return self._respond(result)
         except AccessDenied as exc:
-            return request.make_json_response(
-                {"success": False, "error": str(exc) or "Unauthorized.", "code": 401},
-                status=401,
+            return self._respond(
+                self._error(str(exc) or "Unauthorized.", code=401, status=401),
+                default_status=401,
             )
         except ValidationError as exc:
-            return request.make_json_response(
-                {"success": False, "error": str(exc), "code": 400},
-                status=400,
+            path = request.httprequest.path
+            method = request.httprequest.method
+            _logger.warning(
+                "API validation error %s %s: %s",
+                method,
+                path,
+                exc,
+            )
+            return self._respond(
+                self._error(
+                    str(exc),
+                    code=400,
+                    status=400,
+                    data={
+                        "path": path,
+                        "method": method,
+                    },
+                ),
+                default_status=400,
             )
         except MissingError as exc:
-            return request.make_json_response(
-                {"success": False, "error": str(exc), "code": 404},
-                status=404,
+            return self._respond(
+                self._error(str(exc), code=404, status=404),
+                default_status=404,
             )
         except Exception as exc:
             _logger.exception("API request failed: %s", exc)
-            return request.make_json_response(
-                {"success": False, "error": "Internal server error. Check server logs.", "code": 500},
-                status=500,
+            return self._respond(
+                self._error(
+                    "Internal server error. Check server logs.",
+                    code=500,
+                    status=500,
+                ),
+                default_status=500,
             )
 
 
