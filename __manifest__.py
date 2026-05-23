@@ -1,6 +1,6 @@
 {
     "name": "Havano Odoo API",
-    "version": "19.0.2.0.5",
+    "version": "19.0.2.0.6",
     "category": "Sales",
     "summary": "REST API for Havano POS: products, pharmacy, doctors, sales, invoices",
     "description": """
@@ -42,6 +42,7 @@ Native Odoo session-based REST API for seamless POS synchronization.
         "account",
         "stock",
         "havano_all_in_one",
+        "havano_product_bundle",
     ],
     "data": [
         "security/ir.model.access.csv",

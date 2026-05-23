@@ -32,6 +32,54 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             _logger.exception("Could not fetch lot info for variant %s: %s", product_variant.id if product_variant else "n/a", str(e))
         return lots
 
+    def _bundle_module_available(self, env):
+        return "is_product_bundle" in env["product.template"]._fields
+
+    def _bundle_product_fields(self, product):
+        if not self._bundle_module_available(product.env):
+            return {"product_bundle_enabled": False}
+        lines = []
+        for line in product.bundle_line_ids:
+            lines.append({
+                "id": line.id,
+                "product_id": line.component_product_id.id,
+                "product_name": line.component_product_id.display_name,
+                "quantity": line.quantity,
+                "uom_id": line.uom_id.id if line.uom_id else None,
+                "uom_name": line.uom_id.name if line.uom_id else "",
+                "cost_price": line.cost_price,
+                "cost_subtotal": line.cost_subtotal,
+                "sale_price": line.unit_price,
+                "sale_subtotal": line.subtotal,
+            })
+        return {
+            "product_bundle_enabled": True,
+            "is_product_bundle": bool(product.is_product_bundle),
+            "expand_bundle_in_so": bool(product.expand_bundle_in_so),
+            "bundle_sale_total": product.bundle_total,
+            "bundle_cost_total": product.bundle_cost_total,
+            "bundle_price_overridden": product.bundle_price_overridden,
+            "bundle_lines": lines,
+            "bundle_line_count": len(lines),
+        }
+
+    def _prepare_product_vals(self, env, data):
+        """Map API payload to product.template values, including bundles."""
+        vals = dict(data)
+        vals.pop("type", None)
+        vals.pop("sku", None)
+        if vals.get("default_code") is None and data.get("sku"):
+            vals["default_code"] = data.get("sku")
+
+        if self._bundle_module_available(env) and vals.get("is_product_bundle"):
+            vals["type"] = "service"
+            if "detailed_type" in env["product.template"]._fields:
+                vals["detailed_type"] = "service"
+            vals.setdefault("sale_ok", True)
+            vals["purchase_ok"] = vals.get("purchase_ok", False)
+            vals.pop("is_storable", None)
+        return vals
+
     def _pharmacy_product_fields(self, product):
         enabled = bool(product.env.company.hao_activate_pharmacy)
         if not enabled:
@@ -271,6 +319,7 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             "strict_uom_tracking": getattr(product, 'strict_uom_tracking', False),
             "available_uoms": available_uoms,  # List of UoMs with prices from pricelist rules
             **self._pharmacy_product_fields(product),
+            **self._bundle_product_fields(product),
             
             "tracking": product.tracking if hasattr(product, 'tracking') else "none",
             "use_expiration_date": product.use_expiration_date if hasattr(product, 'use_expiration_date') else False,
@@ -376,23 +425,24 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
         
         if not data.get("name"):
             data["name"] = sku
-        
-        if "type" in data:
-            data.pop("type")
+
+        is_bundle = bool(data.get("is_product_bundle"))
+        vals = self._prepare_product_vals(env, data)
         
         product = env["product.template"].search([
             ("default_code", "=", str(sku).strip())
         ], limit=1)
         
         if product:
-            product.write(data)
+            product.write(vals)
             msg = _("Product updated.")
             status = 200
         else:
-            data.setdefault("is_storable", True)
-            data.setdefault("sale_ok", True)
-            data.setdefault("purchase_ok", True)
-            product = env["product.template"].create(data)
+            if not is_bundle:
+                vals.setdefault("is_storable", True)
+                vals.setdefault("sale_ok", True)
+                vals.setdefault("purchase_ok", True)
+            product = env["product.template"].create(vals)
             msg = _("Product created.")
             status = 201
         
@@ -413,7 +463,8 @@ class HavanoProductsController(HavanoApiControllerMixin, http.Controller):
             raise MissingError(_("Product #%s not found.") % product_id)
         if not data:
             raise ValidationError(_("No data provided for update."))
-        product.write(data)
+        vals = self._prepare_product_vals(env, data)
+        product.write(vals)
         return self._success(self._serialize_product(product), message=_("Product updated."))
 
     @http.route("/api/v1/products/<int:product_id>", auth="public", methods=["DELETE"], type="json", csrf=False)

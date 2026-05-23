@@ -1,0 +1,165 @@
+{
+  "info": {
+    "_postman_id": "havano-product-bundle-api-v1",
+    "name": "Havano Product Bundle API",
+    "description": "POS flow for product bundles on Odoo 19.\n\n**Workflow:**\n1. **Login** — save `api_key`\n2. **Create bundle product** — `POST /api/v1/products` with `is_product_bundle: true`, `list_price` (type is forced to **service**)\n3. **Get product** — `GET /api/v1/products/:id` includes `bundle_lines`\n4. **Set bundle components** — `PUT /api/v1/products/:id/bundle` with `lines[]` (product_id, quantity, uom_id, cost_price, sale_price)\n5. **Get bundle** — `GET /api/v1/products/:id/bundle`\n\n**Requires:** `havano_product_bundle` module installed.\n\n**Auth:** `X-API-Key: {{api_key}}`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8069" },
+    { "key": "api_key", "value": "YOUR_API_KEY_HERE" },
+    { "key": "bundle_product_id", "value": "145" },
+    { "key": "component_product_id", "value": "12" },
+    { "key": "component_uom_id", "value": "1" }
+  ],
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-API-Key", "type": "string" },
+      { "key": "value", "value": "{{api_key}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (get API key)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.api_key) {",
+                  "    pm.collectionVariables.set('api_key', res.data.api_key);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"db\": \"showline_odoo\",\n  \"login\": \"admin\",\n  \"password\": \"YOUR_PASSWORD\",\n  \"generate_api_key\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Products (bundle product)",
+      "item": [
+        {
+          "name": "Create Product Bundle (service)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.success && res.data && res.data.id) {",
+                  "    pm.collectionVariables.set('bundle_product_id', String(res.data.id));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"POS Bundle Pizza\",\n  \"default_code\": \"BUNDLE-PIZZA-001\",\n  \"is_product_bundle\": true,\n  \"list_price\": 0.0,\n  \"sale_ok\": true,\n  \"expand_bundle_in_so\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products"]
+            },
+            "description": "Creates a service product with is_product_bundle=true. Type is forced to service on the server."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Product (with bundle fields)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{bundle_product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{bundle_product_id}}"]
+            },
+            "description": "Returns product including product_bundle_enabled, is_product_bundle, bundle_lines, bundle_sale_total, list_price."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Product Bundle flags / sale price",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_product_bundle\": true,\n  \"list_price\": 100.0\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{bundle_product_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{bundle_product_id}}"]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Bundle Components",
+      "item": [
+        {
+          "name": "Set Bundle Lines (create / replace)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"list_price\": 85.55,\n  \"expand_bundle_in_so\": true,\n  \"lines\": [\n    {\n      \"product_id\": {{component_product_id}},\n      \"quantity\": 0.5,\n      \"uom_id\": {{component_uom_id}},\n      \"cost_price\": 0.0,\n      \"sale_price\": 1.5\n    },\n    {\n      \"product_id\": 12,\n      \"quantity\": 2.2,\n      \"uom_id\": 1,\n      \"cost_price\": 10.0,\n      \"sale_price\": 34.0\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{bundle_product_id}}/bundle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{bundle_product_id}}", "bundle"]
+            },
+            "description": "Replaces all bundle component lines. Each line: product_id (variant), quantity, uom_id, cost_price, sale_price. If list_price omitted, syncs to sum of line sale subtotals."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Bundle Lines",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/products/{{bundle_product_id}}/bundle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "products", "{{bundle_product_id}}", "bundle"]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 from . import auth
 from . import helpers
 from . import products
+from . import product_bundles
 from . import customers
 from . import sales
 from . import sales_orders
