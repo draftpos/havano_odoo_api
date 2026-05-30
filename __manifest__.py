@@ -46,7 +46,6 @@ Native Odoo session-based REST API for seamless POS synchronization.
     ],
     "data": [
         "security/ir.model.access.csv",
-        "data/sequence_data.xml",
         "views/res_users_views.xml",
         "views/api_docs_views.xml",
         "views/product_template_views.xml",
