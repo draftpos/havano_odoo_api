@@ -4,6 +4,7 @@ from odoo import http
 from odoo.http import request
 import json
 import logging
+import uuid
 
 _logger = logging.getLogger(__name__)
 
@@ -54,21 +55,15 @@ class HavanoAuthController(http.Controller):
             
             ApiKey = request.env['res.users.apikeys'].sudo()
             
-            # Delete existing keys
-            existing_keys = ApiKey.search([
-                ('user_id', '=', user_id),
-                ('name', '=', name)
-            ])
-            if existing_keys:
-                existing_keys._remove()
-                _logger.info("Removed existing API keys for user %s", user.name)
+            # Create a unique name to prevent overwriting existing keys
+            unique_name = f"{name} - {uuid.uuid4().hex[:8]}"
             
             # Generate new API key using Odoo 19's _generate method
             # Parameters: scope, name, expiration_date
             # scope=None means access to any RPC call
             api_key = ApiKey._generate(
                 scope="rpc",
-                name=name,
+                name=unique_name,
                 expiration_date=None,  # Persistent key (no expiration)
             )
             
